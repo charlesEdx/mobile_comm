@@ -612,6 +612,8 @@ static void _accept_connection(void)
 
 	addrlen = sizeof(clientInfo);	// CY: TODO, 這個 clientInfo 命名不太明確，其實就是 client 的 socket address strcuture
 
+@@@ Review 到這裡！！！
+
 	//-- accept socket connection from APP
 	verbose_printf("accepting client...\n");
 	clientSockfd = accept(g_controlSVR_FD, (struct sockaddr*) &clientInfo, &addrlen);
