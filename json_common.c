@@ -30,7 +30,7 @@
 #define LOG_VERBOSE	0
 
 #define NULL_FUNCTION				do {} while(0)
-#define error_printf(format, ...)   fprintf(stderr, "%s() @ %s, %d, ERROR: "format, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define error_printf(format, ...)   fprintf(stderr, "%s() @ %s, %d, ERROR: "format, __FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__);
 
 #if LOG_DBG==1
 #define debug_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
