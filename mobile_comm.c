@@ -30,8 +30,8 @@
 //-- In-File Debug Printf
 //---------------------------------------------
 #define LOG_INFO	1
-#define LOG_DBG		0
-#define LOG_VERBOSE	0
+#define LOG_DBG		1
+#define LOG_VERBOSE	1
 #define LOG_FUNC	0
 
 #define NULL_FUNCTION				do {} while(0)
@@ -315,7 +315,7 @@ static void _process_starting_packet(int recv_len)
 	int ret = sscanf(g_recvBuf, "%[^:]:%[^\r\n]\r\n%[^:]:%[^\r\n]\r\n%[^:]:%[^\r\n]\r\n%[^:]:%[^\r\n]\r\n",
 					szKeyDL, szValDL, szKeyPT, szValPT, szKeyPC, szValPC, szKeySID, szValSID);
 
-	#if 0 ///-- DEBUG ONLY
+	#if 1 ///-- DEBUG ONLY
 		printf("\n=== Received data ... \n%s\n", g_recvBuf);
 		printf("%s = %s, %s = %s, %s = %s, %s = %s \n", szKeyDL, szValDL, szKeyPT, szValPT, szKeyPC, szValPC, szKeySID, szValSID);
 	#endif
@@ -428,7 +428,7 @@ static void _process_trailing_packet(int recv_len)
 
 	//recv jsondat finish
 	if (g_cmdDL != g_recvJsonLen) {
-		error_printf("g_cmdDL != jsonDataLend !!\n");
+		error_printf("g_cmdDL(%d) != jsonDataLen(%d) !!\n", g_cmdDL, g_recvJsonLen);
 		return;
 	}
 
@@ -486,7 +486,7 @@ static void _process_connection(void)
 	//---------------------------------------------
 	memset(g_recvBuf, 0, CSVR_RECV_CMDBUF_SIZE);
 	int recv_len = recv(g_clientSocket_FD, (void*) g_recvBuf, CSVR_RECV_CMDBUF_SIZE, 0);    //recv data from app
-	verbose_printf("received %d data from client - 0x%0X", recv_len, g_clientSocket_FD);
+	verbose_printf("received %d data from client - 0x%0X\n", recv_len, g_clientSocket_FD);
 	#if 0	///-- DEBUG ONLY
 		if (recv_len) {
 			printf("=== Received data ...\n %s\n\n", g_recvBuf);
