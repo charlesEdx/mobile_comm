@@ -29,19 +29,12 @@
 //---------------------------------------------
 //-- In-File Debug Printf
 //---------------------------------------------
-#define LOG_INFO	1
-#define LOG_DBG		0
+#define LOG_DBG		1
 #define LOG_VERBOSE	0
 #define LOG_FUNC	0
 
 #define NULL_FUNCTION				do {} while(0)
 #define error_printf(format, ...)   fprintf(stderr, "%s() @ %s, %d, ERROR: "format, __FUNCTION__, __FILE__, __LINE__,  ##__VA_ARGS__);
-
-#if LOG_INFO==1
-#define info_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define info_printf(format, ...)		NULL_FUNCTION
-#endif
 
 #if LOG_DBG==1
 #define debug_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
@@ -72,7 +65,7 @@ conx_cb_t conx_cb;
 //---------------------------------------------
 //-- Sockets
 //---------------------------------------------
-static int g_controlSVR_FD = -1;		// the socket fd to listen connection request
+static int g_appSocket_FD = -1;		// the socket fd to listen connection request
 static int g_clientSocket_FD = -1;		// the socket fd of the accepted connection to send() and recv() data.
 static int g_controlSVR_Running = 0;
 static pthread_mutex_t g_clientSocket_mutex;
@@ -240,7 +233,7 @@ static void _accept_connection(void)
 
 	//-- accept socket connection from APP
 	verbose_printf("accepting client...\n");
-	clientSockfd = accept(g_controlSVR_FD, (struct sockaddr*) &clientInfo, (socklen_t *)&addrlen);
+	clientSockfd = accept(g_appSocket_FD, (struct sockaddr*) &clientInfo, (socklen_t *)&addrlen);
 
 	if (clientSockfd == -1) {
 		error_printf("accept g_controlSVR_Running failed !!\n");
@@ -349,7 +342,7 @@ static void _process_starting_packet(int recv_len)
 	int dataSize = strlen(headerEnd);
 	if (dataSize <= 0) {
 		// no json data ?
-		error_printf("[FIXME] %s, %d !!\n", __FUNCTION__, __LINE__);
+		debug_printf("[FIXME] %s, %d !!\n", __FUNCTION__, __LINE__);
 		return;
 	}
 
@@ -519,7 +512,7 @@ static void _process_connection(void)
 	//---------------------------------------------
 	if (recv_len == 0) {
 		// recv complete
-		info_printf("(recv_len == 0), client disconnected\n");
+		verbose_printf("(recv_len == 0), client disconnected\n");
 		close(g_clientSocket_FD);
 		g_clientSocket_FD = -1;
 
@@ -596,8 +589,8 @@ static void* _THREAD_ControlSVR(void *param)
 
 	while (g_controlSVR_Running) {
 
-		if (g_controlSVR_FD == -1) {
-			error_printf("Exiting thread loop ...(g_controlSVR_FD == -1) !!!\n");
+		if (g_appSocket_FD == -1) {
+			debug_printf("Exiting thread loop ...(g_appSocket_FD == -1) !!!\n");
 			break;
 		}
 
@@ -605,27 +598,27 @@ static void* _THREAD_ControlSVR(void *param)
 		//-- The app command could be segmented into multiple packets,
 		//---------------------------------------------
 		if (g_clientSocket_FD > 0) {
-			/// client connected -- skip select(g_controlSVR_FD), unnecessary 2sec timeout !!!
+			/// client connected -- skip select(g_appSocket_FD), unnecessary 2sec timeout !!!
 			goto _PROC_CONNECTION;
 		}
 
 		FD_ZERO(&fdsr);						// clear socket readset
-		FD_SET(g_controlSVR_FD, &fdsr);		// fdsr --> socket readset
+		FD_SET(g_appSocket_FD, &fdsr);		// fdsr --> socket readset
 
 		timeout.tv_sec  = (CSVR_SELECT_TIMEOUT_INTVAL / 1000);
 		timeout.tv_usec = (CSVR_SELECT_TIMEOUT_INTVAL % 1000) * 1000;
 
 		//---------------------------------------------
 		//-- Waiting connection request from APP
-		//-- select(g_controlSVR_FD)
+		//-- select(g_appSocket_FD)
 		//---------------------------------------------
-		verbose_printf("checking controlSVR socket status --> select(g_controlSVR_FD) ...\n");
-		ret = select(g_controlSVR_FD + 1, &fdsr /*readset*/, NULL/*writeset*/, NULL/*exceptset*/, &timeout);
-		verbose_printf("\t... select(g_controlSVR_FD) return=%d ...\n", ret);
+		verbose_printf("checking controlSVR socket status --> select(g_appSocket_FD) ...\n");
+		ret = select(g_appSocket_FD + 1, &fdsr /*readset*/, NULL/*writeset*/, NULL/*exceptset*/, &timeout);
+		verbose_printf("\t... select(g_appSocket_FD) return=%d ...\n", ret);
 
 
 		////////////////////////////////////////////////////
-		/// (1) Select(g_controlSVR_FD) Error !!
+		/// (1) Select(g_appSocket_FD) Error !!
 		////////////////////////////////////////////////////
 		if (ret == -1) {
 			//--- select server error !!
@@ -635,12 +628,12 @@ static void* _THREAD_ControlSVR(void *param)
 		}
 
 		////////////////////////////////////////////////////
-		/// (2) Select(g_controlSVR_FD) Timeout !!
+		/// (2) Select(g_appSocket_FD) Timeout !!
 		////////////////////////////////////////////////////
 		if (ret == 0) {
 
 			#if 0 // DEBUG ONLY
-			printf("select(g_controlSVR_FD) time out!! ");
+			printf("select(g_appSocket_FD) time out!! ");
 			putc('+', stdout);
 			#endif
 
@@ -696,7 +689,6 @@ _PROC_CONNECTION:
 				//---------------------------------------------
 				//-- process incoming connection
 				//-- APP protocol: https://docs.google.com/document/d/1h8qM2tJFuIYJX0DSADmVdcMAKvoZXL3M/edit
-				info_printf("processing connection\n");
 				//---------------------------------------------
 				_process_connection();
 			}
@@ -704,15 +696,15 @@ _PROC_CONNECTION:
 		}
 
 		////////////////////////////////////////////////////
-		// (3) Select(g_controlSVR_FD) found pending request !!
+		// (3) Select(g_appSocket_FD) found pending request !!
 		////////////////////////////////////////////////////
-		info_printf("accepting new connection\n");
+		verbose_printf("accepting new connection\n");
 		_accept_connection();
 	}	/// while()
 
-	if(g_controlSVR_FD != -1) {
-		close(g_controlSVR_FD);
-		g_controlSVR_FD = -1;
+	if(g_appSocket_FD != -1) {
+		close(g_appSocket_FD);
+		g_appSocket_FD = -1;
 		verbose_printf("[FDFR_SRV] socket server is closed\n");
 	}
 
@@ -738,15 +730,15 @@ int ControlSVR_Start(void)
 	pthread_t pt_action_thread;
 
 	//--- socket() --  create socket for controlSVR
-	if (g_controlSVR_FD != -1) {
-		verbose_printf("[%s] socket server was created! \n", __FUNCTION__);
+	if (g_appSocket_FD != -1) {
+		error_printf("socket server was created! \n");
 		return 0;
 	}
 
-	verbose_printf("Creating socket on g_controlSVR_FD \n");
-	g_controlSVR_FD = socket(AF_INET, SOCK_STREAM, 0);
+	verbose_printf("Creating socket on g_appSocket_FD \n");
+	g_appSocket_FD = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (g_controlSVR_FD == -1) {
+	if (g_appSocket_FD == -1) {
 		error_printf("create socket error!!!\n");
 		return -1;
 	}
@@ -758,45 +750,45 @@ int ControlSVR_Start(void)
 	serverInfo.sin_addr.s_addr = INADDR_ANY;
 	serverInfo.sin_port = htons(server_port);
 
-	//--- bind() - socket to a specific port
-	verbose_printf("Binding socket g_controlSVR_FD on port %d ...\n", server_port);
-	if (bind(g_controlSVR_FD, (struct sockaddr *)&serverInfo, sizeof(serverInfo)) == -1) 	{
-		error_printf("bind sockfd failed!!!\n");
-		return -1;
-	}
-	verbose_printf("bind sockfd succeeded - port=%d ...\n", server_port);
+	// //--- bind() - socket to a specific port
+	// verbose_printf("Binding socket g_appSocket_FD on port %d ...\n", server_port);
+	// if (bind(g_appSocket_FD, (struct sockaddr *)&serverInfo, sizeof(serverInfo)) == -1) 	{
+	// 	error_printf("bind sockfd failed!!!\n");
+	// 	return -1;
+	// }
+	// verbose_printf("bind sockfd succeeded - port=%d ...\n", server_port);
 
-	//--- listen()
-	verbose_printf("listening socket g_controlSVR_FD  ... timeout=5-sec\n");
-	if (listen(g_controlSVR_FD, 5) == -1) {
-		error_printf("listen sockfd error!!!\n");
-		return -1;
-	}
-	verbose_printf("listen sockfd succeeded \n");
+	// //--- listen()
+	// verbose_printf("listening socket g_appSocket_FD  ... timeout=5-sec\n");
+	// if (listen(g_appSocket_FD, 5) == -1) {
+	// 	error_printf("listen sockfd error!!!\n");
+	// 	return -1;
+	// }
+	// verbose_printf("listen sockfd succeeded \n");
 
-	//--- Now, controlSVR is running
-	verbose_printf("Set flag, g_controlSVR_Running == 1 \n");
-	g_controlSVR_Running = 1;
+	// //--- Now, controlSVR is running
+	// verbose_printf("Set flag, g_controlSVR_Running == 1 \n");
+	// g_controlSVR_Running = 1;
 
-	//--- Creating controlSVR thread
-	info_printf("creating controlSVR thread\n");
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	// //--- Creating controlSVR thread
+	// debug_printf("creating controlSVR thread\n");
+	// pthread_attr_init(&attr);
+	// pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-	if (pthread_create(&pt_action_thread, &attr, _THREAD_ControlSVR, NULL) != 0)
-	{
-		error_printf("create controlSVR thread failed!!!\n");
-		pthread_attr_destroy(&attr);
-		g_controlSVR_Running = 0;
+	// if (pthread_create(&pt_action_thread, &attr, _THREAD_ControlSVR, NULL) != 0)
+	// {
+	// 	error_printf("create controlSVR thread failed!!!\n");
+	// 	pthread_attr_destroy(&attr);
+	// 	g_controlSVR_Running = 0;
 
-		close(g_controlSVR_FD);
-		g_controlSVR_FD = -1;
-		return -1;
-	}
+	// 	close(g_appSocket_FD);
+	// 	g_appSocket_FD = -1;
+	// 	return -1;
+	// }
 
-	pthread_attr_destroy(&attr);
+	// pthread_attr_destroy(&attr);
 
-	info_printf("controlSVR is created, g_controlSVR_FD = %d ...\n", g_controlSVR_FD);
+	// debug_printf("controlSVR is created, g_appSocket_FD = %d ...\n", g_appSocket_FD);
 
 	return 0;
 }
@@ -811,9 +803,9 @@ int ControlSVR_Start(void)
 ///!------------------------------------------------------
 void ControlSVR_Stop(void)
 {
-	info_printf("Stopping controlSVR ...");
+	debug_printf("Stopping controlSVR ...");
 	g_controlSVR_Running = 0;
-	info_printf(" completed!\n");
+	debug_printf(" completed!\n");
 }
 
 
@@ -833,7 +825,7 @@ int main(int argc, char **argv)
 	//---------------------------------------------
 	//-- Create socket for controlSVR to receive commands from mobile apps
 	//---------------------------------------------
-	info_printf("Starting controlSVR ...\n");
+	debug_printf("Starting controlSVR ...\n");
 	ControlSVR_Start();
 
 	while(1) {
