@@ -23,7 +23,6 @@
 
 #include "mobile_comm.h"
 #include "mobile_comm_private.h"
-#include "mc_common.h"
 
 
 //---------------------------------------------
@@ -32,31 +31,12 @@
 #define LOG_DBG		1
 #define LOG_VERBOSE	0
 #define LOG_FUNC	0
-
-#define NULL_FUNCTION				do {} while(0)
-#define error_printf(format, ...)   fprintf(stderr, "%s() @ %s, %d, ERROR: "format, __FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__);
-
-#if LOG_DBG==1
-#define debug_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define debug_printf(format, ...)		NULL_FUNCTION
-#endif
-
-#if LOG_VERBOSE==1
-#define verbose_printf(format, ...)	fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define verbose_printf(format, ...)	NULL_FUNCTION
-#endif
+#include "infile_debug.h"
 
 
 //---------------------------------------------
 //-- Sockets
 //---------------------------------------------
-static int g_controlSVR_FD = -1;		// the socket fd to listen connection request
-static int g_clientSocket_FD = -1;		// the socket fd of the accepted connection to send() and recv() data.
-static int g_controlSVR_Running = 0;
-
-
 static char _respJsonData[CSVR_RESP_BUF_MAX_SIZE] = {0};
 static char *_respJsonHdrFormat = \
 			"DL: %d\r\n"

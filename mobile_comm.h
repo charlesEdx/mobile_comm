@@ -10,13 +10,6 @@
 extern "C" {
 #endif
 
-#if 0
-#define MC_SAVE_JSON_CMD_TO_FILE
-#define MC_CMD_SAVE_JSON_PATH		"/tmp/mc_cmd_save.json"
-#endif
-
-// #define CREATE_COMMAND_MSGQ
-// #define CREATE_NOTIFY_MSGQ
 
 //-- [PORT] define port number of the controlSVR socket
 #define CONTROL_SVR_PORT		8481
@@ -45,18 +38,11 @@ extern "C" {
 #define CSVR_RESP_BIN_DATA_MAX_SIZE				(500<<10)
 #define CSVR_RESP_BUF_MAX_SIZE					(CSVR_RESP_JSON_HEADER_MAX_SIZE+CSVR_RESP_JSON_DATA_MAX_SIZE+CSVR_RESP_BIN_DATA_MAX_SIZE)
 
-#ifdef TEST_RELEASE
-// for development
-#define DB_TXT_PATH "/mnt/nfs/lpr_db.txt"
-#define DB_JSON_PATH "/mnt/nfs/lpr_db.json"
-#define RTSP_SET_FILE "/mnt/nfs/rtsp_set.json"
-#else
-#define DB_TXT_PATH "/mnt/SD0/lpr_db.txt"
-#define DB_JSON_PATH "/mnt/SD0/lpr_db.json"
-#define RTSP_SET_FILE "/mnt/mtd/rtsp_set.json"
-#endif
 
 
+
+int ControlSVR_Start(void);
+void ControlSVR_Stop(void);
 
 #ifdef __cplusplus
 }

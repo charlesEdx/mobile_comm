@@ -1,13 +1,11 @@
 #include <stdio.h>
 #include <unistd.h>
-// #include <jpeglib.h>
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 
-#include <unistd.h>	// getopt
+#include <unistd.h>	// getopt, usleep
 
-// #include "path_query.h"
 #include <jansson.h>
 #include <stdbool.h>
 
@@ -23,7 +21,6 @@
 
 #include "mobile_comm.h"
 #include "mobile_comm_private.h"
-#include "mc_common.h"
 
 
 //---------------------------------------------
@@ -33,38 +30,7 @@
 #define LOG_DBG		1
 #define LOG_VERBOSE	1
 #define LOG_FUNC	0
-
-#define NULL_FUNCTION				do {} while(0)
-#define error_printf(format, ...)   fprintf(stderr, "%s() @ %s, %d, ERROR: "format, __FUNCTION__, __FILE__, __LINE__,  ##__VA_ARGS__);
-
-#if LOG_INFO==1
-#define info_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define info_printf(format, ...)		NULL_FUNCTION
-#endif
-
-#if LOG_DBG==1
-#define debug_printf(format, ...)		fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define debug_printf(format, ...)		NULL_FUNCTION
-#endif
-
-#if LOG_VERBOSE==1
-#define verbose_printf(format, ...)	fprintf(stderr, format, ##__VA_ARGS__)
-#else
-#define verbose_printf(format, ...)	NULL_FUNCTION
-#endif
-
-#if LOG_FUNC==1
-#define FUNC_ENTRY(format, ...)     fprintf(stderr, "Entering --> %s("format")\n", __FUNCTION__, ##__VA_ARGS__)
-#define FUNC_EXIT()                 fprintf(stderr, "Exiting <-- %s()", __FUNCTION__)
-#else
-#define FUNC_ENTRY(format, ...)     NULL_FUNCTION
-#define FUNC_EXIT()                 NULL_FUNCTION
-#endif
-
-
-
+#include "infile_debug.h"
 
 conx_cb_t conx_cb;
 
@@ -78,8 +44,6 @@ static int g_controlSVR_Running = 0;
 static pthread_mutex_t g_clientSocket_mutex;
 
 static int g_cmdSID;
-
-// char *app_name="mobile_comm";	// why do I need it here !?
 
 
 
@@ -160,7 +124,7 @@ int CSVR_ReplyResult(char *respJsonBuf, unsigned int respJsonSize, char *bindata
 			verbose_printf("socket is writable");
 
 			len = send(g_clientSocket_FD, returnMsg, returnMsgLen, MSG_NOSIGNAL);
-			//verbose_printf("send() = %d", len);
+			//verbose_printf("send() = %d\n", len);
 
 			if (len == -1) {
 				error_printf("send data failed!\n");
@@ -216,8 +180,8 @@ exit_func:
 ///!------------------------------------------------------
 void CSVR_ProcessRequest(char *jsonData, int length, int sid)
 {
-	extern void WD360_ProcessRequest(char *jsonData, int length, int sid);
-	WD360_ProcessRequest(jsonData, length, sid);
+	extern void LPR_ProcessRequest(char *jsonData, int length, int sid);
+	LPR_ProcessRequest(jsonData, length, sid);
 }
 
 
@@ -377,7 +341,7 @@ static void _process_starting_packet(int recv_len)
 
 		verbose_printf("recv json data finish, len=%d\n", g_recvJsonLen);
 		verbose_printf("++++++++++ CSVR_ProcessRequest() \n");
-		CSVR_ProcessRequest(g_recvJsonBuf, g_recvJsonLen, g_cmdDL);
+		CSVR_ProcessRequest(g_recvJsonBuf, g_recvJsonLen, g_cmdSID);
 
 		//reset command parsing
 		g_recvJsonLen = 0;
