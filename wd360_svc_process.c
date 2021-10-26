@@ -38,18 +38,6 @@
 //-- Sockets
 //---------------------------------------------
 static char _respJsonData[CSVR_RESP_BUF_MAX_SIZE] = {0};
-static char *_respJsonHdrFormat = \
-			"DL: %d\r\n"
-			"PT: JSON\r\n"
-			"PC: NA\r\n"
-			"SID: %d\r\n\r\n";
-static char *_respJsonDataFormat =
-			"{"
-			"\"cmd\":\"%s\","
-			"\"function\":\"LPR\","
-			"\"data\":[%s]"
-			"}";
-
 
 static int _dewarp_mode;
 static int _aqd_panel;	// air quality panel dispaly
@@ -156,8 +144,10 @@ static int _Return_SetPanel(int result, int sid)
 	return _ControlServerSendResult(_respJsonData, strlen(_respJsonData), NULL, 0, sid);
 }
 
-
-#if 0
+//---------------------------------------------
+//-- TODO: Add function to manage all air quality values
+//---------------------------------------------
+#if 1
 ///!------------------------------------------------------
 ///! @brief		_Return_GetAirValue
 ///! @param
@@ -180,9 +170,9 @@ static int _Return_GetAirValue(int sid)
 				"\"tvoc\": \"%d\","
 				"\"temperature\": \"%2d.%1d\","
 				"\"humidity\": \"%d\"}",
-				_val_pm10, _val_pm2d5, _val_pm1d0, _val_pm0d3,
-				_val_hcho, _val_co, _val_co2, _val_tvoc,
-				_val_tempInt, _val_tempDec, _val_hum);
+				10000, 2500, 1000, 300,
+				3333, 5555, 222, 444,
+				27, 3, 45);
 	verbose_printf("return GetAirValue:\n%s\n", _respJsonData);
 
 	return _ControlServerSendResult(_respJsonData, strlen(_respJsonData), NULL, 0, sid);
@@ -262,6 +252,9 @@ void WD360_ProcessRequest(char *recvJsonCmd, int length, int sid)
 					_aqd_panel = aqd;
 					verbose_printf(" _aqd_panel ---> %d\n", _aqd_panel);
 					_Return_SetPanel(0 /*success*/, sid);
+					//---------------------------------------------
+					//-- TODO: how to set panel
+					//---------------------------------------------
 					#ifdef USE_SERIAL_COMM
 					_serial_comm_set_display(_aqd_panel);
 					#endif // USE_SERIAL_COMM
@@ -276,7 +269,7 @@ void WD360_ProcessRequest(char *recvJsonCmd, int length, int sid)
 			}
 			if (display)	free(display);
 		}
-		#if 0
+		#if 1	// TODO
 		else if (STR_EQUAL(cmdVal, "get_air_value")) {
 			verbose_printf("get_air_value\n");
 			#ifdef USE_SERIAL_COMM

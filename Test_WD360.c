@@ -18,8 +18,8 @@
 #include <signal.h>
 
 #define PORT "8481" // the port client will be connecting to
-//#define HOST "192.168.80.131"
-#define HOST "192.168.50.95"
+#define HOST "192.168.80.131"
+//#define HOST "192.168.50.95"
 
 
 #define JSON_CMD_STRING_BUF_SIZE		1024
@@ -27,7 +27,8 @@ char jsonCmdString[JSON_CMD_STRING_BUF_SIZE];
 
 
 static unsigned terminate = 0;
-
+#define MAXDATASIZE (5*1024*1024) // max number of bytes we can get at once
+static char rcvBuf[MAXDATASIZE];
 
 void sigroutine(int signo) {
 	switch (signo) {
@@ -59,11 +60,15 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int make_jsonCmd_GetAI(int sid)
+
+//---------------------------------------------
+//-- Get Dewarp mode
+//---------------------------------------------
+int make_jsonCmd_GetDewarp(int sid)
 {
-	#define CMD_GET_AI	\
+	#define CMD_GET_DEWARP	\
 	"{"\
-		"\"cmd\": \"get_ai\""\
+		"\"cmd\": \"get_dewarp\""\
 	"}"
 
 	int rv =
@@ -74,78 +79,22 @@ int make_jsonCmd_GetAI(int sid)
 		"PT: JSON\r\n"
 		"PC: NA\r\n"
 		"SID: %d\r\n\r\n"
-		CMD_GET_AI,
-		strlen(CMD_GET_AI),
+		CMD_GET_DEWARP,
+		strlen(CMD_GET_DEWARP),
 		sid
 	);
-	//printf("jsonCmd_GetAI= [%s]\n", jsonCmdString);
+	//printf("jsonCmd_GetDewarp= [%s]\n", jsonCmdString);
 
 	return rv;
 }
 
 
-#define MAXDATASIZE (5*1024*1024) // max number of bytes we can get at once
-static char rcvBuf[MAXDATASIZE];
-
-int test_GetAI(int sockfd, int sid)
+int test_GetDewarp(int sockfd, int sid)
 {
 	int rv;
 	int n_rcv;
 
-	rv = make_jsonCmd_GetAI(sid);
-	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
-
-	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
-	if (rv == -1) {
-		printf("ERROR: send jsonCmdString failed!\n");
-		return -1;
-	}
-
-	if ((n_rcv = recv(sockfd, rcvBuf, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    return -1;
-	}
-
-	rcvBuf[n_rcv] = '\0';
-
-	printf("\n>>>> Received:\n'%s'\n",rcvBuf);
-
-}
-
-int make_jsonCmd_UpdateAI(int sid)
-{
-	#define CMD_UPDATE_AI	\
-	"{"\
-		"\"cmd\": \"update_ai\","\
-		"\"function\": \"LPR\","\
-		"\"license\": \"AAA-1111\","\
-		"\"name\": \"Jerry\""\
-	"}"
-
-	int rv =
-	snprintf(
-		jsonCmdString,
-		JSON_CMD_STRING_BUF_SIZE,
-		"DL: %ld\r\n"
-		"PT: JSON\r\n"
-		"PC: NA\r\n"
-		"SID: %d\r\n\r\n"
-		CMD_UPDATE_AI,
-		strlen(CMD_UPDATE_AI),
-		sid
-	);
-	//printf("jsonCmd_GetAI= [%s]\n", jsonCmdString);
-
-	return rv;
-}
-
-
-int test_UpdateAI(int sockfd, int sid)
-{
-	int rv;
-	int n_rcv;
-
-	rv = make_jsonCmd_UpdateAI(sid);
+	rv = make_jsonCmd_GetDewarp(sid);
 	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
 
 	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
@@ -166,16 +115,19 @@ int test_UpdateAI(int sockfd, int sid)
 }
 
 
-
-int make_jsonCmd_SetAI(int sid)
+//---------------------------------------------
+//-- Set Dewarp Mode
+//---------------------------------------------
+int make_jsonCmd_SetDewarp(int sid, int dwp)
 {
-	#define CMD_SET_AI	\
+	#define CMD_SET_DEWARP	\
 	"{"\
-		"\"cmd\": \"set_ai\","\
-		"\"function\": \"LPR\","\
-		"\"license\": \"AAA-1111\","\
-		"\"name\": \"Herry\""\
+		"\"cmd\": \"set_dewarp\","\
+		"\"dewarp1-1\": \"%d\""\
 	"}"
+
+	char cc[1024];
+	snprintf(cc, 1024, CMD_SET_DEWARP, dwp);
 
 	int rv =
 	snprintf(
@@ -185,22 +137,22 @@ int make_jsonCmd_SetAI(int sid)
 		"PT: JSON\r\n"
 		"PC: NA\r\n"
 		"SID: %d\r\n\r\n"
-		CMD_SET_AI,
-		strlen(CMD_SET_AI),
-		sid
+		"%s",
+		strlen(cc),
+		sid, cc
 	);
-	//printf("jsonCmd_GetAI= [%s]\n", jsonCmdString);
+	//printf("jsonCmd_SetDewarp= [%s]\n", jsonCmdString);
 
 	return rv;
 }
 
 
-int test_SetAI(int sockfd, int sid)
+int test_SetDewarp(int sockfd, int sid, int dwp)
 {
 	int rv;
 	int n_rcv;
 
-	rv = make_jsonCmd_SetAI(sid);
+	rv = make_jsonCmd_SetDewarp(sid, dwp);
 	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
 
 	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
@@ -223,14 +175,14 @@ int test_SetAI(int sockfd, int sid)
 
 
 
-
-int make_jsonCmd_DeleteAI(int sid)
+//---------------------------------------------
+//-- Get Air Value
+//---------------------------------------------
+int make_jsonCmd_GetAirValue(int sid)
 {
-	#define CMD_DELETE_AI	\
+	#define CMD_GET_AIR_VALUE	\
 	"{"\
-		"\"cmd\": \"delete_ai\","\
-		"\"function\": \"LPR\","\
-		"\"license\": \"AAA-1111\""\
+		"\"cmd\": \"get_air_value\""\
 	"}"
 
 	int rv =
@@ -241,22 +193,80 @@ int make_jsonCmd_DeleteAI(int sid)
 		"PT: JSON\r\n"
 		"PC: NA\r\n"
 		"SID: %d\r\n\r\n"
-		CMD_DELETE_AI,
-		strlen(CMD_DELETE_AI),
+		CMD_GET_AIR_VALUE,
+		strlen(CMD_GET_AIR_VALUE),
 		sid
 	);
-	//printf("jsonCmd_GetAI= [%s]\n", jsonCmdString);
+	//printf("jsonCmd_GetAirValue= [%s]\n", jsonCmdString);
 
 	return rv;
 }
 
 
-int test_DeleteAI(int sockfd, int sid)
+int test_GetAirValue(int sockfd, int sid)
 {
 	int rv;
 	int n_rcv;
 
-	rv = make_jsonCmd_DeleteAI(sid);
+	rv = make_jsonCmd_GetAirValue(sid);
+	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
+
+	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
+	if (rv == -1) {
+		printf("ERROR: send jsonCmdString failed!\n");
+		return -1;
+	}
+
+	if ((n_rcv = recv(sockfd, rcvBuf, MAXDATASIZE-1, 0)) == -1) {
+	    perror("recv");
+	    return -1;
+	}
+
+	rcvBuf[n_rcv] = '\0';
+
+	printf("\n>>>> Received:\n%s\n",rcvBuf);
+
+}
+
+
+//---------------------------------------------
+//-- Set Panel Display
+//---------------------------------------------
+int make_jsonCmd_SetDisplay(int sid, int disp)
+{
+	#define CMD_SET_DISPLAY	\
+	"{"\
+		"\"cmd\": \"set_panel\","\
+		"\"display\": \"%d\""\
+	"}"
+
+	char cc[512];
+	snprintf(cc, 512, CMD_SET_DISPLAY, disp);
+
+	int rv =
+	snprintf(
+		jsonCmdString,
+		JSON_CMD_STRING_BUF_SIZE,
+		"DL: %ld\r\n"
+		"PT: JSON\r\n"
+		"PC: NA\r\n"
+		"SID: %d\r\n\r\n"
+		"%s",
+		strlen(cc),
+		sid, cc
+	);
+	//printf("jsonCmd_SetDisplay= [%s]\n", jsonCmdString);
+
+	return rv;
+}
+
+
+int test_SetDisplay(int sockfd, int sid, int disp)
+{
+	int rv;
+	int n_rcv;
+
+	rv = make_jsonCmd_SetDisplay(sid, disp);
 	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
 
 	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
@@ -277,11 +287,16 @@ int test_DeleteAI(int sockfd, int sid)
 }
 
 
-int make_jsonCmd_GetLPR(int sid)
+
+
+//---------------------------------------------
+//-- Get Panel Display
+//---------------------------------------------
+int make_jsonCmd_GetDisplay(int sid)
 {
-	#define CMD_GET_LPR	\
+	#define CMD_GET_DISPLAY	\
 	"{"\
-		"\"cmd\": \"get_lpr\""\
+		"\"cmd\": \"get_panel_display\""\
 	"}"
 
 	int rv =
@@ -292,21 +307,21 @@ int make_jsonCmd_GetLPR(int sid)
 		"PT: JSON\r\n"
 		"PC: NA\r\n"
 		"SID: %d\r\n\r\n"
-		CMD_GET_LPR,
-		strlen(CMD_GET_LPR),
+		CMD_GET_DISPLAY,
+		strlen(CMD_GET_DISPLAY),
 		sid
 	);
-	//printf("jsonCmd_GetLPR= [%s]\n", jsonCmdString);
+	//printf("jsonCmd_GetDISPLAY= [%s]\n", jsonCmdString);
 
 	return rv;
 }
 
-int test_GetLPR(int sockfd, int sid)
+int test_GetDisplay(int sockfd, int sid)
 {
 	int rv;
 	int n_rcv;
 
-	rv = make_jsonCmd_GetLPR(sid);
+	rv = make_jsonCmd_GetDisplay(sid);
 	printf("\n>>>> Sending cmd= \n[%s] \n", jsonCmdString);
 
 	rv = send(sockfd, jsonCmdString, rv, MSG_NOSIGNAL);
@@ -315,45 +330,13 @@ int test_GetLPR(int sockfd, int sid)
 		return -1;
 	}
 
-	n_rcv = 0;
-	int remainLen;
-	char *pnext = rcvBuf;
-	while(1) {
-		struct timeval tv;
-		fd_set fds;
-		int ret;
-
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-
-		FD_ZERO(&fds);
-		FD_SET(sockfd, &fds);
-
-		ret = select(sockfd + 1, &fds, NULL, NULL, &tv);
-		if (-1 == ret) {
-			printf("select errors!!\n");
-			break;
-		}
-		else if (0 == ret) {
-			// time-out
-			//printf("-- timeout --\n");
-			break;
-		}
-
-		if (FD_ISSET(sockfd, &fds)) {
-			remainLen = MAXDATASIZE;
-			ret = recv(sockfd, pnext, remainLen, 0);
-			if (ret == -1) {
-				perror("recv");
-				break;
-			}
-			//printf("***** ret size= %d\n", ret);
-			remainLen -= ret;
-			n_rcv += ret;
-			pnext += ret;
-		}
+	if ((n_rcv = recv(sockfd, rcvBuf, MAXDATASIZE-1, 0)) == -1) {
+	    perror("recv");
+	    return -1;
 	}
+
 	rcvBuf[n_rcv] = '\0';
+
 	printf("\n>>>> %d Received:\n'%.300s'\n",n_rcv, rcvBuf);
 }
 
@@ -445,26 +428,26 @@ int main(int argc, char *argv[])
 
 	flush_recv_soocket(sockfd);
 
-	int m = 0;
+	int m = 0, dv=4;
 	while (1) {
 		if (terminate)
 			break;
 
 		printf("\n==== m= %d =============\n", m);
-		test_GetAI(sockfd, sid++);
+		test_GetAirValue(sockfd, sid++);
 
-		if (m % 3 == 0) {
-			//test_UpdateAI(sockfd, sid++);
-			test_GetLPR(sockfd, sid++);
+		if (m % dv == 0) {
+			test_GetDewarp(sockfd, sid++);
 		}
-		// else if (m % 3 == 1) {
-		// 	test_SetAI(sockfd, sid++);
-		// }
-		// else if (m % 3 == 2) {
-		// 	test_DeleteAI(sockfd, sid++);
-
-		// 	test_GetAI(sockfd, sid++);
-		// }
+		else if (m % dv == 1) {
+			test_SetDewarp(sockfd, sid++, 11);
+		}
+		else if (m % dv == 2) {
+			test_GetDisplay(sockfd, sid++);
+		}
+		else if (m % dv == 3) {
+			test_SetDisplay(sockfd, sid++, 5);
+		}
 
 		m++;
 		sleep(5);

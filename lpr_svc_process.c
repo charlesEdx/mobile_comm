@@ -19,8 +19,9 @@
 #include <time.h>
 #include <errno.h>
 
-#include "prog_common.h"
-#include "lpr_database.h"
+#include "string_common.h"
+
+#include "lpr_agent.h"
 
 #define LOG_INFO	1
 #define LOG_DBG		1
@@ -30,41 +31,20 @@
 
 
 typedef struct found_plate_s {
-	char			*plate;
-	char			*name;
+	char			plate[LPR_PLATE_ID_LEN];
+	char			name[LPR_PLATE_OWNER_LEN];
+	time_t			tm;		// the lpr result is updated
 	unsigned		bbox_x;
 	unsigned		bbox_y;
 	unsigned		bbox_w;
 	unsigned		bbox_h;
-	char			*jpeg;
+	char			jpeg[LPR_JPEG_BUF_LEN];
 	unsigned		jpeg_size;
 } found_plate_t;
 
-
-// // socket
-// static int g_LPRServerSockFD = -1;	// the socket fd to listen connection request
-// static int g_LPRClientSockFD = -1;	// the socket fd of the accepted connection to send() and recv() data.
-// static int g_LPRServerRunning = 0;
-// static int g_LPRProcessRunning = 0;
-// static pthread_mutex_t g_LPRSocketMutex;
+static found_plate_t _foundPlate;
 
 
-
-// static    char _cam_user_name[48]={0};
-// static    char _cam_user_passwd[48]={0};
-// static    char _snapshot_path[256]={0};
-// static    char _snapshot_path_esc[256];
-// static    char _relay_jpg_path[64]={0};
-// static    char _rgb888_path[64]={0};
-// static    char _rgb565_path[64]={0};
-// static    char _bbox_bmp_path[64]={0};
-
-// #define LPR_RECV_BUF_SIZE (128 * 1024) // 128K
-// #define LPR_JSON_DATA_SIZE (900 * 1024) // 900k
-
-// #define LPR_MAX_REG_USER_NUM	100
-
-// #define JSON_RESP_HDR_MAX_LENGTH	(256)
 #define JSON_RESP_DATA_LENGTH		(500*1024) 	// assume JPG or 2000 license plate data
 static char _respJsonData[JSON_RESP_DATA_LENGTH] = {0};
 #if 0
@@ -80,8 +60,6 @@ static char *_respJsonDataFormat =
 			"\"data\":[%s]"
 			"}";
 #endif
-
-// static path_query_obj _db_obj;
 
 ///!------------------------------------------------------
 ///! @brief
@@ -120,6 +98,17 @@ static long int _load_binary_file(char *fpath, char **p)
 	return lsize;
 }
 
+///------------------------------------------------------------------
+/// @brief
+/// @param
+/// @return
+/// @note
+///------------------------------------------------------------------
+int LPR_SVC_init(void *data)
+{
+	memset(&_foundPlate, 0, sizeof(found_plate_t));
+	_foundPlate.jpeg_size = 0;
+}
 
 
 ///------------------------------------------------------------------
@@ -157,7 +146,7 @@ static int _Return_GetAI(int sid)
 
 	int n_total;
 	struct lpquery_list_s *qlist;
-	n_total = lpr_query_alloc(&qlist);
+	n_total = lpr_queryALL_open(&qlist);
 	struct lpquery_s *p = qlist->items;
 	for (int i=0; i<n_total; i++) {
 		//debug_printf(">>> license= %s, name= %s \n", p->license, p->name);
@@ -173,7 +162,7 @@ static int _Return_GetAI(int sid)
 	}
 	strcat(_respJsonData, "]}");
 
-	lpr_query_free();
+	lpr_queryALL_close();
 
 	//verbose_printf("return GetAI:\n%s\n", _respJsonData);
 
@@ -331,14 +320,6 @@ static int _Return_GetLPR(found_plate_t *plate, int result, int sid)
 		} while(0);
 		#endif
 
-		// unsigned char *p;
-		// p = &_respJsonData[_json_size];
-		// printf("[%lx], (%lx) \n", p, _respJsonData+_json_size);
-		//memcpy(_respJsonData+_json_size, plate->jpeg, plate->jpeg_size);
-		// memcpy(p, plate->jpeg, plate->jpeg_size);
-		//printf("[?????, size=%d %x %x %x %x \n", plate->jpeg_size, p[0], p[1], p[2], p[3]);
-		//_json_size += plate->jpeg_size;
-
 		#if 0 // DEBUG ONLY
 		do {
 			unsigned char *p;
@@ -362,7 +343,7 @@ static int _Return_GetLPR(found_plate_t *plate, int result, int sid)
 ///! @return
 ///! @note
 ///!------------------------------------------------------
-static int getJsonString(char *buf, char *key, char **value, int *length)
+int getJsonString(char *buf, char *key, char **value, int *length)
 {
 	char keyName[128] = {0};
 	char *keyNamePtr = NULL;
@@ -511,22 +492,14 @@ void LPR_ProcessRequest(char *jsonData, int length, int sid)
 	char *cmdVal = NULL;
 	int   cmdLen = 0;
 
-	// // fixed image size
-	// int imgWidth;
-	// int imgHeight;
-
-	// imgWidth = 480;
-	// imgHeight = 640;
-
-
 	if (getJsonString(jsonData, "cmd", &cmdVal, &cmdLen) == 0) {
 		info_printf("[%s] \"cmd\": %s, sid=%d\n", __FUNCTION__, cmdVal, sid);
 
-		if (STREQL(cmdVal, "get_ai")) {
+		if (STR_EQUAL(cmdVal, "get_ai")) {
 			debug_printf(">>> get_ai\n");
 			_Return_GetAI(sid);
 		}
-		else if (STREQL(cmdVal, "set_ai")) {
+		else if (STR_EQUAL(cmdVal, "set_ai")) {
   			debug_printf(">>> set_ai\n");
 			char *name, *plate;
 			int  sz_len;
@@ -542,7 +515,7 @@ void LPR_ProcessRequest(char *jsonData, int length, int sid)
 			if (name)	free(name);
 			if (plate)	free(plate);
 		}
-		else if (STREQL(cmdVal, "delete_ai")) {
+		else if (STR_EQUAL(cmdVal, "delete_ai")) {
 			debug_printf(">>> delete_ai\n");
 			char *plate;
 			int	 sz_len;
@@ -555,7 +528,7 @@ void LPR_ProcessRequest(char *jsonData, int length, int sid)
 			}
 			if (plate)	free(plate);
 		}
-		else if (STREQL(cmdVal, "update_ai")) {
+		else if (STR_EQUAL(cmdVal, "update_ai")) {
 			debug_printf(">>> update_ai\n");
 			char *name, *plate;
 			int	 sz_len;
@@ -571,50 +544,39 @@ void LPR_ProcessRequest(char *jsonData, int length, int sid)
 			if (name)	free(name);
 			if (plate)	free(plate);
 		}
-		else if (STREQL(cmdVal, "get_lpr")) {
-			info_printf("get_lpr\n");
-			do {	// Temp for APP eraly integration
-				#define	VALID_LPR_FREQ	300
-				#define	CAR1_PATH		"/mnt/SDCard/car1.jpg"
-				#define CAR2_PATH		"/mnt/SDCard/car2.jpg"
-				static unsigned int get_cntr=0, lpr_id=0;
-				found_plate_t	found_plate_cb[2] = {
-					{"3B-1158", "GUEST", 43, 167, 104, 52, },
-					{"3970-EA", "VIP", 190, 99, 93, 52, }
-				};
+		else if (STR_EQUAL(cmdVal, "get_lpr")) {
+			info_printf(">>> get_lpr\n");
 
-				// if (++get_cntr % VALID_LPR_FREQ) {
-				// 	//-- No car enterance
-				// 	_Return_GetLPR(&found_plate_cb[lpr_id], 34 /*no plate*/, sid);
-				// }
-				// else {
-					//-- car enterance
-					int	result;
-					char *jpeg, *fpath;
-					int jpeg_size;
+			int isUpdated = 0;
+			LOCK_LPR_RESULT;
+			if (lpr_result->is_updated) {
+				snprintf(_foundPlate.plate, LPR_PLATE_ID_LEN, "%s", lpr_result->plate);
+				snprintf(_foundPlate.name, LPR_PLATE_OWNER_LEN, "%s", lpr_result->name);
+				_foundPlate.bbox_x = lpr_result->bbox_x;
+				_foundPlate.bbox_y = lpr_result->bbox_y;
+				_foundPlate.bbox_w = lpr_result->bbox_w;
+				_foundPlate.bbox_h = lpr_result->bbox_h;
+				unsigned jsize = (lpr_result->jpeg_size < LPR_JPEG_BUF_LEN) ? lpr_result->jpeg_size : LPR_JPEG_BUF_LEN;
+				memcpy(_foundPlate.jpeg, lpr_result->jpeg_buf, jsize);
+				_foundPlate.jpeg_size = jsize;
 
-					lpr_id = (lpr_id ? 0 : 1);
-					fpath = (lpr_id) ? CAR2_PATH: CAR1_PATH;
-					jpeg = NULL;
-					jpeg_size = (int)_load_binary_file(fpath, (char **)&jpeg);
+				_foundPlate.tm = lpr_result->tm;
+				lpr_result->is_updated = 0;
 
-					//printf("++++ %x %x %x %x \n", jpeg[0], jpeg[1], jpeg[2], jpeg[3]);
+				isUpdated = 1;
+			}
+			UNLOCK_LPR_RESULT;
 
-					if (!jpeg_size) {
-						result = 34;
-					}
-					else {
-						found_plate_cb[lpr_id].jpeg = jpeg;
-						found_plate_cb[lpr_id].jpeg_size = jpeg_size;
-						result = 0;
-					}
+			if (isUpdated) {
+				//-- car enterance
+				_Return_GetLPR(&_foundPlate, 0 /*success*/, sid);
+			}
+			else {
+				//-- No car enterance
+				_Return_GetLPR(&_foundPlate, 34 /*no plate*/, sid);
+			}
 
-					_Return_GetLPR(&found_plate_cb[lpr_id], result, sid);
-
-					if (jpeg) free(jpeg);
-				// }
-
-			} while(0);
+		printf("---3---\n");
 		}
 		else {
 			debug_printf("[LPR_SRV] unsupported cmd: %s", cmdVal);

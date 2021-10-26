@@ -47,7 +47,7 @@ LDFLAGS			+= $(MY_LDFLAGS)
 	@$(CC) -std=c++98 $(CFLAGS) -c $< -o $@
 
 
-C_SRCS			= mobile_comm.c  mc_common.c  wd360_svc_process.c  json_common.c
+C_SRCS			= mobile_comm.c  wd360_svc_process.c  json_common.c
 C_OBJS			= $(C_SRCS:.c=.o)
 
 EXEC_MOBILE_COMM	= mobile_comm
@@ -66,15 +66,9 @@ $(EXEC_MOBILE_COMM): $(OBJS_ALL)
 	@(echo "..... Succeeded!!")
 	@(echo "")
 
-
-
-# install:
-# 	./install_falldt.sh
-
 clean:
 	@rm -f $(EXEC_ALL)
 	@rm -f $(OBJS_ALL) $(DEPS_ALL)
-	# ./install_falldt.sh --clean
 
 .PHONY: clean all install $(EXEC_ALL)
 

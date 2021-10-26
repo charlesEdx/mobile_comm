@@ -3,13 +3,13 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#include <string.h>
 
 #include <unistd.h>	// getopt, usleep
 
 #include <jansson.h>
 #include <stdbool.h>
 
-#include <string.h>
 #include <strings.h>
 #include <sys/sysinfo.h>
 
@@ -27,8 +27,8 @@
 //-- In-File Debug Printf
 //---------------------------------------------
 #define LOG_INFO	1
-#define LOG_DBG		1
-#define LOG_VERBOSE	1
+#define LOG_DBG		0
+#define LOG_VERBOSE	0
 #define LOG_FUNC	0
 #include "infile_debug.h"
 
@@ -180,8 +180,22 @@ exit_func:
 ///!------------------------------------------------------
 void CSVR_ProcessRequest(char *jsonData, int length, int sid)
 {
-	extern void LPR_ProcessRequest(char *jsonData, int length, int sid);
-	LPR_ProcessRequest(jsonData, length, sid);
+	extern void WD360_ProcessRequest(char *jsonData, int length, int sid);
+	WD360_ProcessRequest(jsonData, length, sid);
+}
+
+
+///!------------------------------------------------------
+///! @brief		Perform initialization of svc process before CSVR starts
+///! @param		data	svc specific data
+///! @return	0/-1 	success/error
+///! @note
+///!------------------------------------------------------
+static int _SVC_process_init(void *data)
+{
+	// extern int LPR_SVC_init(void *data);
+	// return LPR_SVC_init(data);
+	return 0;
 }
 
 
@@ -522,13 +536,14 @@ static void _process_connection(void)
 ///!------------------------------------------------------
 static int _THREAD_INIT_ControlSVR(void *param)
 {
+	int rc;
 	clientSockfd = -1;
 	g_recvJsonLen = 0;
 	g_hdrReceived = 0;
 	g_cmdDL = 0;
 
-
-	return 0;
+	rc = _SVC_process_init(param);
+	return rc;
 }
 
 
@@ -544,7 +559,7 @@ static void* _THREAD_ControlSVR(void *param)
 {
 	int ret;
 
-	//-- FUNC_ENTRY();
+	info_printf("ContolSVR started ...\n");
 
 	////////////////////////////////////////////////
 	///!--- Thread global initialization
@@ -560,7 +575,7 @@ static void* _THREAD_ControlSVR(void *param)
 
 	while (g_controlSVR_Running) {
 
-		if (g_controlSVR_FD == -1) {
+		if (-1 == g_controlSVR_FD) {
 			error_printf("Exiting thread loop ...(g_controlSVR_FD == -1) !!!\n");
 			break;
 		}
@@ -572,7 +587,6 @@ static void* _THREAD_ControlSVR(void *param)
 			/// client connected -- skip select(g_controlSVR_FD), unnecessary 2sec timeout !!!
 			goto _PROC_CONNECTION;
 		}
-
 		FD_ZERO(&fdsr);						// clear socket readset
 		FD_SET(g_controlSVR_FD, &fdsr);		// fdsr --> socket readset
 
@@ -587,11 +601,10 @@ static void* _THREAD_ControlSVR(void *param)
 		ret = select(g_controlSVR_FD + 1, &fdsr /*readset*/, NULL/*writeset*/, NULL/*exceptset*/, &timeout);
 		verbose_printf("\t... select(g_controlSVR_FD) return=%d ...\n", ret);
 
-
 		////////////////////////////////////////////////////
 		/// (1) Select(g_controlSVR_FD) Error !!
 		////////////////////////////////////////////////////
-		if (ret == -1) {
+		if (-1 == ret) {
 			//--- select server error !!
 			error_printf("checking socket of controlSVR error - errono=%d, %s \n", errno, strerror(errno));
 			sleep(CSVR_SELECT_ERROR_RETRY_INTVAL);
@@ -601,7 +614,7 @@ static void* _THREAD_ControlSVR(void *param)
 		////////////////////////////////////////////////////
 		/// (2) Select(g_controlSVR_FD) Timeout !!
 		////////////////////////////////////////////////////
-		if (ret == 0) {
+		if (0 == ret) {
 
 			#if 0 // DEBUG ONLY
 			printf("select(g_controlSVR_FD) time out!! ");
@@ -617,7 +630,7 @@ static void* _THREAD_ControlSVR(void *param)
 			}
 
 //---------------------------------------------
-//-- FIXME: 這裡的寫法不太乾淨，當處沒有想清楚，要找時間修一下！！
+//-- FIXME: 這裡的寫法不太乾淨，當初沒有想清楚，要找時間修一下！！
 //---------------------------------------------
 _PROC_CONNECTION:
 			//---------------------------------------------
@@ -630,7 +643,7 @@ _PROC_CONNECTION:
 			FD_SET(g_clientSocket_FD, &fdsr);
 			ret = select(g_clientSocket_FD + 1, &fdsr, NULL, NULL, &timeout);
 
-			if (ret == -1) {
+			if (-1 == ret) {
 				//--- error
 				error_printf("check client connection error! --> closing client socket (%d) \n", g_clientSocket_FD);
 				if (g_clientSocket_FD > 0) {
@@ -638,8 +651,9 @@ _PROC_CONNECTION:
 				}
 				g_clientSocket_FD = -1;
 			}
-			else if (ret == 0) {
+			else if (0 == ret) {
 				//--- timout
+				//debug_printf("timeout ...\n");
 				if (g_hdrReceived || (g_recvJsonLen > 0)) {
 					debug_printf("recv data timeout -- g_hdrReceived=%d, g_recvJsonLen=%d\n", g_hdrReceived, g_recvJsonLen);
 
@@ -666,7 +680,6 @@ _PROC_CONNECTION:
 			}
 			continue;
 		}
-
 		////////////////////////////////////////////////////
 		// (3) Select(g_controlSVR_FD) found pending request !!
 		////////////////////////////////////////////////////
@@ -732,7 +745,7 @@ int ControlSVR_Start(void)
 
 	//--- listen()
 	verbose_printf("listening socket g_controlSVR_FD  ... timeout=5-sec\n");
-	if (listen(g_controlSVR_FD, 5) == -1) {
+	if (-1 == listen(g_controlSVR_FD, 5)) {
 		error_printf("listen sockfd error!!!\n");
 		return -1;
 	}
